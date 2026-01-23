@@ -11,25 +11,35 @@ def process(base_path):
     client = genai.Client()
     nurses = []
     for path in paths:
-        nurse = extract_data(client, path)
+        filename = os.path.basename(path)
+        nurse, error_msg = extract_data(client, path)
         if nurse:
-            nurses.append(nurse)
+            if not nurse.first_name and not nurse.serial_number and not nurse.last_name:
+                log_error(filename, "Blank Card / No data found")
+            else:
+                nurses.append(nurse)
+        else:
+            log_error(filename, error_msg or "Unknown Error")
     return nurses
 
 
 def extract_data(client, path):
-    with open(path, "rb") as f:
-        image_bytes = f.read()
-    response = llm(image_bytes, client)
     try:
-        print("printing response: ")
-        print(response)
-        print("done printing response")
+        with open(path, "rb") as f:
+            image_bytes = f.read()
+
+        response = llm(image_bytes, client)
+
+        if not response or not response.text:
+            return None, "Empty response from Gemini (Check safety filters)"
+
         data = json.loads(response.text)
-        return NurseCadet(data)
+        return NurseCadet(data, path), None
+
+    except json.JSONDecodeError:
+        return None, "JSON Parsing Error (Model returned invalid format)"
     except Exception as e:
-        print(f"Error parsing {path}: {e}")
-        return None
+        return None, f"System Error: {str(e)}"
 
 
 def get_image_paths(base_path):
@@ -60,6 +70,16 @@ def llm(image_bytes, client: genai.Client):
     )
 
 
+def log_error(filename, reason, error_csv_path="errors.csv"):
+    """Helper to append errors or blank card notices to a CSV."""
+    file_exists = os.path.isfile(error_csv_path)
+    with open(error_csv_path, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["filename", "reason"])
+        writer.writerow([filename, reason])
+
+
 prompt = """
 ACT AS: An expert archival transcription assistant specializing in US Nurse Cadet Corps historical records.
 
@@ -87,4 +107,7 @@ ACCURACY REQUIREMENTS:
 HANDLING ILLEGIBLE TEXT:
 - If a handwritten field is completely illegible or blurred, return null. 
 - Do not guess or approximate.
+
+DATES:
+ - Dates should be formatted as MM-DD-YYYY.
 """

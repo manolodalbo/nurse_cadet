@@ -1,5 +1,5 @@
 class NurseCadet:
-    def __init__(self, data):
+    def __init__(self, data, filename):
         """Initializes the cadet object from a dictionary (JSON response)."""
         # Card Classification
         self.card_type = data.get("card_type")
@@ -29,6 +29,7 @@ class NurseCadet:
         self.school_name = data.get("school_name")
         self.school_city = data.get("school_city")
         self.school_state = data.get("school_state")
+        self.file = filename
 
     @staticmethod
     def get_response_schema():

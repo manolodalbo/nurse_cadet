@@ -29,6 +29,7 @@ def save_to_csv(cadets, output_file="extracted_nurses.csv"):
         "school_name",
         "school_city",
         "school_state",
+        "file",
     ]
 
     with open(output_file, mode="w", newline="", encoding="utf-8") as f:
