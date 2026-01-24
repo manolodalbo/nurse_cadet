@@ -14,7 +14,13 @@ def process(base_path):
         filename = os.path.basename(path)
         nurse, error_msg = extract_data(client, path)
         if nurse:
-            if not nurse.first_name and not nurse.serial_number and not nurse.last_name:
+            if (
+                not nurse.first_name and not nurse.serial_number and not nurse.last_name
+            ) or (
+                nurse.first_name == "null"
+                and nurse.serial_number == "null"
+                and nurse.last_name == "null"
+            ):
                 log_error(filename, "Blank Card / No data found")
             else:
                 nurses.append(nurse)
@@ -110,4 +116,7 @@ HANDLING ILLEGIBLE TEXT:
 
 DATES:
  - Dates should be formatted as MM-DD-YYYY.
+
+BLANK CARDS:
+ - If card is blank return null for everything.
 """

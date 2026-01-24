@@ -37,7 +37,10 @@ class NurseCadet:
         return {
             "type": "OBJECT",
             "properties": {
-                "card_type": {"type": "STRING", "enum": ["300A", "300A Revised"]},
+                "card_type": {
+                    "type": "STRING",
+                    "enum": ["300A", "300A Revised", "null"],
+                },
                 "serial_number": {"type": "STRING"},
                 "last_name": {"type": "STRING"},
                 "first_name": {"type": "STRING"},
@@ -52,7 +55,7 @@ class NurseCadet:
                 "termination_date": {"type": "STRING"},
                 "termination_type": {
                     "type": "STRING",
-                    "enum": ["Graduation", "Withdrawal"],
+                    "enum": ["Graduation", "Withdrawal", "null"],
                 },
                 "school_name": {"type": "STRING"},
                 "school_city": {"type": "STRING"},
