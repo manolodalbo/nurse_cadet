@@ -4,29 +4,79 @@ from google.genai import types
 import json
 from nurse import NurseCadet
 import csv
+import time
+import threading
+from queue import Queue, Empty
+
+
+RPM_LIMIT = 500
+COOLDOWN = 60
 
 
 def process(base_path):
     paths = get_image_paths(base_path)
     client = genai.Client()
+
+    # Put all paths into a thread-safe Queue
+    path_queue = Queue()
+    for p in paths:
+        path_queue.put(p)
+
     nurses = []
-    for path in paths:
-        filename = os.path.basename(path)
-        nurse, error_msg = extract_data(client, path)
-        if nurse:
-            if (
-                not nurse.first_name and not nurse.serial_number and not nurse.last_name
-            ) or (
-                nurse.first_name == "null"
-                and nurse.serial_number == "null"
-                and nurse.last_name == "null"
-            ):
-                log_error(filename, "Blank Card / No data found")
-            else:
-                nurses.append(nurse)
-        else:
-            log_error(filename, error_msg or "Unknown Error")
+    # Lock to ensure adding to the nurses list is thread-safe
+    results_lock = threading.Lock()
+
+    def dedicated_worker():
+        """A persistent thread that manages its own 60s rhythm."""
+        while True:
+            try:
+                path = path_queue.get_nowait()
+            except Empty:
+                break
+
+            start_time = time.time()
+
+            nurse = worker_task(path, client)
+
+            if nurse:
+                with results_lock:
+                    nurses.append(nurse)
+            elapsed = time.time() - start_time
+            wait_time = max(0, COOLDOWN - elapsed)
+            if not path_queue.empty():
+                time.sleep(wait_time)
+            path_queue.task_done()
+
+    threads = []
+    for _ in range(RPM_LIMIT):
+        t = threading.Thread(target=dedicated_worker)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
     return nurses
+
+
+def worker_task(path, client):
+    filename = os.path.basename(path)
+    nurse, error_msg = extract_data(client, path)
+    if nurse:
+        is_blank = (
+            not nurse.first_name and not nurse.serial_number and not nurse.last_name
+        ) or (
+            nurse.first_name == "null"
+            and nurse.serial_number == "null"
+            and nurse.last_name == "null"
+        )
+        if is_blank:
+            log_error(filename, "Blank Card / No data found")
+            return None
+        return nurse
+    else:
+        log_error(filename, error_msg or "Unknown Error")
+        return None
 
 
 def extract_data(client, path):
