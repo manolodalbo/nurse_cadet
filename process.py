@@ -7,7 +7,7 @@ import csv
 import time
 import threading
 from queue import Queue, Empty
-
+from tqdm import tqdm
 
 RPM_LIMIT = 500
 COOLDOWN = 60
@@ -25,6 +25,7 @@ def process(base_path):
     nurses = []
     # Lock to ensure adding to the nurses list is thread-safe
     results_lock = threading.Lock()
+    pbar = tqdm(total=len(paths), desc="Processing Nurse Cards", unit="file")
 
     def dedicated_worker():
         """A persistent thread that manages its own 60s rhythm."""
@@ -41,6 +42,7 @@ def process(base_path):
             if nurse:
                 with results_lock:
                     nurses.append(nurse)
+            pbar.update(1)
             elapsed = time.time() - start_time
             wait_time = max(0, COOLDOWN - elapsed)
             if not path_queue.empty():
@@ -55,7 +57,7 @@ def process(base_path):
 
     for t in threads:
         t.join()
-
+    pbar.close()
     return nurses
 
 
@@ -162,11 +164,9 @@ ACCURACY REQUIREMENTS:
 
 HANDLING ILLEGIBLE TEXT:
 - If a handwritten field is completely illegible or blurred, return null. 
-- Do not guess or approximate.
-
 DATES:
- - Dates should be formatted as MM-DD-YYYY.
+ - Dates should be returned as MM-DD-YYYY regardless of how are they are written in card.
 
-BLANK CARDS:
+BLANK CARDS or Irrelevant Photos:
  - If card is blank return null for everything.
 """
