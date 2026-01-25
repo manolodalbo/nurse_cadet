@@ -128,7 +128,7 @@ def get_image_paths(base_path):
 
 def llm(image_bytes, client: genai.Client):
     return client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=[
             types.Content(
                 parts=[
@@ -144,7 +144,7 @@ def llm(image_bytes, client: genai.Client):
     )
 
 
-def log_error(filename, reason, error_csv_path="errors_2_0_half_size.csv"):
+def log_error(filename, reason, error_csv_path="errors_3_0_half_size.csv"):
     """Helper to append errors or blank card notices to a CSV."""
     file_exists = os.path.isfile(error_csv_path)
     with open(error_csv_path, mode="a", newline="", encoding="utf-8") as f:
