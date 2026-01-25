@@ -8,6 +8,8 @@ import time
 import threading
 from queue import Queue, Empty
 from tqdm import tqdm
+from PIL import Image
+import io
 
 RPM_LIMIT = 200
 COOLDOWN = 30
@@ -85,7 +87,7 @@ def extract_data(client, path):
     try:
         with open(path, "rb") as f:
             image_bytes = f.read()
-
+        image_bytes = reduce_resolution(image_bytes, scale=0.5)
         response = llm(image_bytes, client)
 
         if not response or not response.text:
@@ -98,6 +100,20 @@ def extract_data(client, path):
         return None, "JSON Parsing Error (Model returned invalid format)"
     except Exception as e:
         return None, f"System Error: {str(e)}"
+
+
+def reduce_resolution(image_bytes, scale=0.5):
+    """Halves width and height, reducing total pixels to 25%."""
+    img = Image.open(io.BytesIO(image_bytes))
+    new_size = (int(img.width * scale), int(img.height * scale))
+
+    # LANCZOS is high-quality for downsampling
+    img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+    output = io.BytesIO()
+    # JPEG format is efficient for vision tasks; quality 85 is the sweet spot
+    img.save(output, format="JPEG", quality=85)
+    return output.getvalue()
 
 
 def get_image_paths(base_path):
@@ -128,7 +144,7 @@ def llm(image_bytes, client: genai.Client):
     )
 
 
-def log_error(filename, reason, error_csv_path="errors_2_0.csv"):
+def log_error(filename, reason, error_csv_path="errors_2_0_half_size.csv"):
     """Helper to append errors or blank card notices to a CSV."""
     file_exists = os.path.isfile(error_csv_path)
     with open(error_csv_path, mode="a", newline="", encoding="utf-8") as f:
