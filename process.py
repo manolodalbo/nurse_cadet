@@ -9,8 +9,8 @@ import threading
 from queue import Queue, Empty
 from tqdm import tqdm
 
-RPM_LIMIT = 500
-COOLDOWN = 60
+RPM_LIMIT = 200
+COOLDOWN = 30
 
 
 def process(base_path):
@@ -112,7 +112,7 @@ def get_image_paths(base_path):
 
 def llm(image_bytes, client: genai.Client):
     return client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         contents=[
             types.Content(
                 parts=[
@@ -128,7 +128,7 @@ def llm(image_bytes, client: genai.Client):
     )
 
 
-def log_error(filename, reason, error_csv_path="errors.csv"):
+def log_error(filename, reason, error_csv_path="errors_2_0.csv"):
     """Helper to append errors or blank card notices to a CSV."""
     file_exists = os.path.isfile(error_csv_path)
     with open(error_csv_path, mode="a", newline="", encoding="utf-8") as f:
