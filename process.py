@@ -9,7 +9,7 @@ from tqdm import tqdm
 from PIL import Image
 from google import genai
 from google.genai import types
-
+from save import save_data
 import constants
 from nurse import NurseCadet
 
@@ -22,14 +22,13 @@ cache_lock = threading.Lock()
 
 
 def process(base_path):
-    # 1. Load the cache ONCE at the very beginning
     master_cache = load_processed_cache()
 
     unprocessed_folders = get_unprocessed_folders(base_path)
     for folder in unprocessed_folders:
-        # Pass the cache into the folder processor
         process_folder(folder, master_cache)
         mark_folder_processed(folder)
+    return
 
 
 def process_folder(folder_path, cache_set):
@@ -38,9 +37,8 @@ def process_folder(folder_path, cache_set):
     path_queue = Queue()
     for p in paths:
         path_queue.put(p)
-
+    save_lock = threading.Lock()
     nurses = []
-    results_lock = threading.Lock()
     pbar = tqdm(
         total=len(paths),
         desc=f"Processing {os.path.basename(folder_path)}",
@@ -66,9 +64,12 @@ def process_folder(folder_path, cache_set):
             nurse = worker_task(path, client)
 
             if nurse:
-                with results_lock:
+                with save_lock:
                     nurses.append(nurse)
-                mark_file_done(filename, cache_set)
+                    mark_file_done(filename, cache_set)
+                    if len(nurses) >= constants.MAX_NURSES_TO_SAVE:
+                        save_data(nurses)
+                        nurses.clear()
 
             pbar.update(1)
             elapsed = time.time() - start_time
@@ -85,8 +86,10 @@ def process_folder(folder_path, cache_set):
 
     for t in threads:
         t.join()
+    if len(nurses) > 0:
+        save_data(nurses)
     pbar.close()
-    return nurses
+    return
 
 
 def worker_task(path, client):
@@ -276,15 +279,3 @@ def mark_file_done(filename, cache_set):
     """Updates both the shared set and the physical CSV file."""
     with cache_lock:
         cache_set.add(filename)
-        file_exists = os.path.isfile(constants.NURSE_OUTPUT)
-        with open(constants.NURSE_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["file", "status", "timestamp"])
-            if not file_exists:
-                writer.writeheader()
-            writer.writerow(
-                {
-                    "file": filename,
-                    "status": "processed",
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-            )

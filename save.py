@@ -1,16 +1,17 @@
 import csv
+import constants
+import os
 
 
 def save_data(extracted_data):
-    save_to_csv(extracted_data)
+    output_file = constants.NURSE_OUTPUT
+    save_to_csv(extracted_data, output_file)
 
 
 def save_to_csv(cadets, output_file):
     if not cadets:
         print("No data to save.")
         return
-
-    # Define the headers based on your NurseCadet attributes
     fieldnames = [
         "card_type",
         "serial_number",
@@ -31,13 +32,14 @@ def save_to_csv(cadets, output_file):
         "school_state",
         "file",
     ]
-
-    with open(output_file, mode="w", newline="", encoding="utf-8") as f:
+    file_exists = os.path.isfile(output_file)
+    with open(output_file, mode="a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
+
+        if not file_exists:
+            writer.writeheader()
 
         for cadet in cadets:
-            # vars(cadet) converts the object attributes into a dictionary
             writer.writerow(vars(cadet))
 
     print(f"Successfully saved {len(cadets)} records to {output_file}")
