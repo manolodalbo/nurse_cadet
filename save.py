@@ -5,7 +5,7 @@ def save_data(extracted_data):
     save_to_csv(extracted_data)
 
 
-def save_to_csv(cadets, output_file="extracted_nurses_3_0_half_size.csv"):
+def save_to_csv(cadets, output_file):
     if not cadets:
         print("No data to save.")
         return

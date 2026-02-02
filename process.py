@@ -1,36 +1,53 @@
 import os
-from google import genai
-from google.genai import types
-import json
-from nurse import NurseCadet
 import csv
 import time
 import threading
+import json
+import io
 from queue import Queue, Empty
 from tqdm import tqdm
 from PIL import Image
-import io
+from google import genai
+from google.genai import types
 
+import constants
+from nurse import NurseCadet
+
+# --- GLOBAL SETTINGS ---
 RPM_LIMIT = 200
 COOLDOWN = 30
 
+# Global lock for the Shared Cache and CSV file writing
+cache_lock = threading.Lock()
+
 
 def process(base_path):
-    paths = get_image_paths(base_path)
-    client = genai.Client()
+    # 1. Load the cache ONCE at the very beginning
+    master_cache = load_processed_cache()
 
-    # Put all paths into a thread-safe Queue
+    unprocessed_folders = get_unprocessed_folders(base_path)
+    for folder in unprocessed_folders:
+        # Pass the cache into the folder processor
+        process_folder(folder, master_cache)
+        mark_folder_processed(folder)
+
+
+def process_folder(folder_path, cache_set):
+    paths = get_image_paths(folder_path)
+    client = genai.Client()
     path_queue = Queue()
     for p in paths:
         path_queue.put(p)
 
     nurses = []
-    # Lock to ensure adding to the nurses list is thread-safe
     results_lock = threading.Lock()
-    pbar = tqdm(total=len(paths), desc="Processing Nurse Cards", unit="file")
+    pbar = tqdm(
+        total=len(paths),
+        desc=f"Processing {os.path.basename(folder_path)}",
+        unit="file",
+    )
 
     def dedicated_worker():
-        """A persistent thread that manages its own 60s rhythm."""
         while True:
             try:
                 path = path_queue.get_nowait()
@@ -38,12 +55,21 @@ def process(base_path):
                 break
 
             start_time = time.time()
+            filename = os.path.basename(path)
+
+            if already_processed(filename, cache_set):
+                log_error(filename, "File already processed")
+                pbar.update(1)
+                path_queue.task_done()
+                continue
 
             nurse = worker_task(path, client)
 
             if nurse:
                 with results_lock:
                     nurses.append(nurse)
+                mark_file_done(filename, cache_set)
+
             pbar.update(1)
             elapsed = time.time() - start_time
             wait_time = max(0, COOLDOWN - elapsed)
@@ -52,7 +78,7 @@ def process(base_path):
             path_queue.task_done()
 
     threads = []
-    for _ in range(RPM_LIMIT):
+    for _ in range(min(RPM_LIMIT, len(paths))):
         t = threading.Thread(target=dedicated_worker)
         t.start()
         threads.append(t)
@@ -65,6 +91,7 @@ def process(base_path):
 
 def worker_task(path, client):
     filename = os.path.basename(path)
+
     nurse, error_msg = extract_data(client, path)
     if nurse:
         is_blank = (
@@ -144,10 +171,10 @@ def llm(image_bytes, client: genai.Client):
     )
 
 
-def log_error(filename, reason, error_csv_path="errors_3_0_half_size.csv"):
+def log_error(filename, reason):
     """Helper to append errors or blank card notices to a CSV."""
-    file_exists = os.path.isfile(error_csv_path)
-    with open(error_csv_path, mode="a", newline="", encoding="utf-8") as f:
+    file_exists = os.path.isfile(constants.ERRORS_OUTPUT)
+    with open(constants.ERRORS_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if not file_exists:
             writer.writerow(["filename", "reason"])
@@ -186,3 +213,78 @@ DATES:
 BLANK CARDS or Irrelevant Photos:
  - If card is blank return null for everything.
 """
+
+
+def get_unprocessed_folders(base_path):
+    processed_names = set()
+    if os.path.exists(constants.PROCESSED_FOLDERS):
+        with open(constants.PROCESSED_FOLDERS, "r") as f:
+            processed_names = {line.strip() for line in f if line.strip()}
+
+    if not os.path.exists(constants.UNPROCESSED_FOLDERS):
+        return []
+
+    full_paths = []
+    with open(constants.UNPROCESSED_FOLDERS, "r") as file:
+        for line in file:
+            folder_name = line.strip()
+            if folder_name and folder_name not in processed_names:
+                full_paths.append(os.path.join(base_path, folder_name))
+
+    return full_paths
+
+
+def mark_folder_processed(full_path):
+    """
+    Extracts the folder name from a full path, removes it from
+    unprocessed.txt, and adds it to processed.txt
+    """
+    folder_name = os.path.basename(full_path)
+
+    if os.path.exists(constants.UNPROCESSED_FOLDERS):
+        with open(constants.UNPROCESSED_FOLDERS, "r") as f:
+            lines = f.readlines()
+        with open(constants.UNPROCESSED_FOLDERS, "w") as f:
+            for line in lines:
+                if line.strip() != folder_name:
+                    f.write(line)
+
+    with open(constants.PROCESSED_FOLDERS, "a") as f:
+        f.write(folder_name + "\n")
+
+
+def load_processed_cache():
+    """Initializes the set from the CSV once at startup."""
+    processed_set = set()
+    if os.path.exists(constants.NURSE_OUTPUT):
+        with open(constants.NURSE_OUTPUT, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                name = row.get("file")
+                if name:
+                    processed_set.add(name)
+    return processed_set
+
+
+def already_processed(filename, cache_set):
+    """Instant lookup in the thread-safe set."""
+    with cache_lock:
+        return filename in cache_set
+
+
+def mark_file_done(filename, cache_set):
+    """Updates both the shared set and the physical CSV file."""
+    with cache_lock:
+        cache_set.add(filename)
+        file_exists = os.path.isfile(constants.NURSE_OUTPUT)
+        with open(constants.NURSE_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["file", "status", "timestamp"])
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(
+                {
+                    "file": filename,
+                    "status": "processed",
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )

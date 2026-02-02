@@ -1,0 +1,5 @@
+BASE_PATH = "data"
+UNPROCESSED_FOLDERS = "data/unprocessed_folders.txt"
+PROCESSED_FOLDERS = "output/processed_folders.txt"
+NURSE_OUTPUT = "output/nurses.csv"
+ERRORS_OUTPUT = "output/errors.csv"
