@@ -92,8 +92,6 @@ def process_folder(folder_path, cache_set):
 
 
 def worker_task(path, client):
-    filename = os.path.basename(path)
-
     nurse, error_msg = extract_data(client, path)
     if nurse:
         is_blank = (
