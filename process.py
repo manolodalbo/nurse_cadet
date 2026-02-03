@@ -13,7 +13,7 @@ from save import save_data
 import constants
 from nurse import NurseCadet
 
-RPM_LIMIT = 200
+RPM_LIMIT = 100
 COOLDOWN = 30
 
 cache_lock = threading.Lock()
@@ -176,6 +176,9 @@ def llm(image_bytes, client: genai.Client):
 
 def log_error(filename, reason):
     """Helper to append errors or blank card notices to a CSV."""
+    mark_file_done(
+        filename,
+    )
     file_exists = os.path.isfile(constants.ERRORS_OUTPUT)
     with error_lock:
         with open(constants.ERRORS_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
@@ -265,6 +268,13 @@ def load_processed_cache():
             reader = csv.DictReader(f)
             for row in reader:
                 name = row.get("file")
+                if name:
+                    processed_set.add(name)
+    if os.path.exists(constants.ERRORS_OUTPUT):
+        with open(constants.ERRORS_OUTPUT, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                name = row.get("filename")
                 if name:
                     processed_set.add(name)
     return processed_set
