@@ -13,12 +13,11 @@ from save import save_data
 import constants
 from nurse import NurseCadet
 
-# --- GLOBAL SETTINGS ---
 RPM_LIMIT = 200
 COOLDOWN = 30
 
-# Global lock for the Shared Cache and CSV file writing
 cache_lock = threading.Lock()
+error_lock = threading.Lock()
 
 
 def process(base_path):
@@ -180,11 +179,12 @@ def llm(image_bytes, client: genai.Client):
 def log_error(filename, reason):
     """Helper to append errors or blank card notices to a CSV."""
     file_exists = os.path.isfile(constants.ERRORS_OUTPUT)
-    with open(constants.ERRORS_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["filename", "reason"])
-        writer.writerow([filename, reason])
+    with error_lock:
+        with open(constants.ERRORS_OUTPUT, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["filename", "reason"])
+            writer.writerow([filename, reason])
 
 
 prompt = """
