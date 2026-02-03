@@ -148,7 +148,10 @@ def reduce_resolution(image_bytes, scale=0.5):
 
 def get_image_paths(base_path):
     jpg_files = []
-    for root, _, files in os.walk(base_path):
+    for root, dirs, files in os.walk(base_path):
+        if "trash" in dirs:
+            dirs.remove("trash")
+
         for file in files:
             if file.lower().endswith(".jpg"):
                 full_path = os.path.join(root, file)
