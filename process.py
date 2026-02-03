@@ -55,7 +55,7 @@ def process_folder(folder_path, cache_set):
             filename = os.path.basename(path)
 
             if already_processed(filename, cache_set):
-                log_error(filename, "File already processed")
+                log_error(path, "File already processed")
                 pbar.update(1)
                 path_queue.task_done()
                 continue
@@ -104,11 +104,11 @@ def worker_task(path, client):
             and nurse.last_name == "null"
         )
         if is_blank:
-            log_error(filename, "Blank Card / No data found")
+            log_error(path, "Blank Card / No data found")
             return None
         return nurse
     else:
-        log_error(filename, error_msg or "Unknown Error")
+        log_error(path, error_msg or "Unknown Error")
         return None
 
 
