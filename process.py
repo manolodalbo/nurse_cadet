@@ -35,13 +35,16 @@ def process(base_path):
         if stop_event.is_set():
             print(f"\nLimit of {CALL_LIMIT} calls reached. Exiting.")
             sys.exit(0)
-        process_folder(folder, master_cache)
-        mark_folder_processed(folder)
+        error = process_folder(folder, master_cache)
+        if error == 0:
+            mark_folder_processed(folder)
     return
 
 
 def process_folder(folder_path, cache_set):
     paths = get_image_paths(folder_path)
+    if len(paths) == 0:
+        return -1
     client = genai.Client()
     path_queue = Queue()
     for p in paths:
@@ -107,6 +110,7 @@ def process_folder(folder_path, cache_set):
             f"\nTarget of {CALL_LIMIT} LLM calls reached. Data saved. Exiting script."
         )
         sys.exit(0)
+    return 0
 
 
 def worker_task(path, client):
