@@ -13,7 +13,7 @@ from save import save_data
 import constants
 from nurse import NurseCadet
 
-RPM_LIMIT = 1
+RPM_LIMIT = 50
 COOLDOWN = 30
 
 cache_lock = threading.Lock()
@@ -32,8 +32,6 @@ def process(base_path):
 
 def process_folder(folder_path, cache_set):
     paths = get_image_paths(folder_path)
-    print("paths:")
-    print(paths)
     client = genai.Client()
     path_queue = Queue()
     for p in paths:
@@ -276,15 +274,11 @@ def load_processed_cache():
                 name = row.get("filename")
                 if name:
                     processed_set.add(name)
-    print("Processed set:")
-    print(processed_set)
     return processed_set
 
 
 def already_processed(filename, cache_set):
     """Instant lookup in the thread-safe set."""
-    print("looking up filename:")
-    print(filename)
     with cache_lock:
         return filename in cache_set
 
