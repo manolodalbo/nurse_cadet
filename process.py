@@ -15,7 +15,7 @@ import constants
 from nurse import NurseCadet
 
 # --- NEW GLOBAL TRACKING ---
-CALL_LIMIT = 2
+CALL_LIMIT = 10000
 llm_call_count = 0
 count_lock = threading.Lock()
 stop_event = threading.Event()
