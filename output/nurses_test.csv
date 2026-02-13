@@ -1,4 +1,2 @@
 card_type,serial_number,last_name,first_name,middle_name,home_street,home_city,home_county,home_state,date_of_birth,admission_corp_date,admission_school_date,termination_date,termination_type,school_name,school_city,school_state,file
-300A Revised,126200,Bice,Mary,null,727 - 3rd Ave West,B'ham,Jefferson,Ala.,02-25-1926,09-15-1944,null,08-13-1946,Withdrawal,Garner Hospital,Anniston,Ala.,C:/NurseCadet/data\test_folder1\32931_1220706418_0321-00039.jpg
-300A Revised,126200,Bice,Mary,null,727 - 3rd Ave West,B'ham,Jefferson,Ala.,02-25-1926,09-15-1944,1944,08-13-1946,Withdrawal,Garner Hospital,Anniston,Ala.,C:\NurseCadet\data\test_folder1\32931_1220706418_0321-00039.jpg
-300A Revised,126201,Fuller,Leatrice,A.,1007 Forest Ave,Ft. Payne,DeKalb,Ala,02-07-1927,09-15-1944,09-15-1944,04-10-1945,Withdrawal,Garner Hospital,Anniston,Ala.,C:\NurseCadet\data\test_folder1\32931_1220706418_0321-00041.jpg
+300A Revised,126200,Bice,Mary,null,"727-3rd Ave West,",B'ham,Jefferson,Ala.,02-25-1926,09-15-1944,1944,08-13-1946,Withdrawal,Garner Hospital,Anniston,Ala.,data/test_folder1\32931_1220706418_0321-00039.jpg
