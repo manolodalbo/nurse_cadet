@@ -4,6 +4,7 @@ import time
 import threading
 import json
 import io
+import sys  # Added for clean exit
 from queue import Queue, Empty
 from tqdm import tqdm
 from PIL import Image
@@ -12,6 +13,13 @@ from google.genai import types
 from save import save_data
 import constants
 from nurse import NurseCadet
+
+# --- NEW GLOBAL TRACKING ---
+CALL_LIMIT = 2
+llm_call_count = 0
+count_lock = threading.Lock()
+stop_event = threading.Event()
+# ---------------------------
 
 RPM_LIMIT = 50
 COOLDOWN = 30
@@ -22,20 +30,26 @@ error_lock = threading.Lock()
 
 def process(base_path):
     master_cache = load_processed_cache()
-
     unprocessed_folders = get_unprocessed_folders(base_path)
     for folder in unprocessed_folders:
-        process_folder(folder, master_cache)
-        mark_folder_processed(folder)
+        if stop_event.is_set():
+            print(f"\nLimit of {CALL_LIMIT} calls reached. Exiting.")
+            sys.exit(0)
+        error = process_folder(folder, master_cache)
+        if error == 0:
+            mark_folder_processed(folder)
     return
 
 
 def process_folder(folder_path, cache_set):
     paths = get_image_paths(folder_path)
+    if len(paths) == 0:
+        return -1
     client = genai.Client()
     path_queue = Queue()
     for p in paths:
         path_queue.put(p)
+
     save_lock = threading.Lock()
     nurses = []
     pbar = tqdm(
@@ -45,7 +59,7 @@ def process_folder(folder_path, cache_set):
     )
 
     def dedicated_worker():
-        while True:
+        while not stop_event.is_set():  # Check if we should stop
             try:
                 path = path_queue.get_nowait()
             except Empty:
@@ -73,7 +87,8 @@ def process_folder(folder_path, cache_set):
             pbar.update(1)
             elapsed = time.time() - start_time
             wait_time = max(0, COOLDOWN - elapsed)
-            if not path_queue.empty():
+
+            if not path_queue.empty() and not stop_event.is_set():
                 time.sleep(wait_time)
             path_queue.task_done()
 
@@ -85,13 +100,29 @@ def process_folder(folder_path, cache_set):
 
     for t in threads:
         t.join()
+
     if len(nurses) > 0:
         save_data(nurses)
+
     pbar.close()
-    return
+    if stop_event.is_set():
+        print(
+            f"\nTarget of {CALL_LIMIT} LLM calls reached. Data saved. Exiting script."
+        )
+        sys.exit(0)
+    return 0
 
 
 def worker_task(path, client):
+    # Check limit before calling LLM
+    global llm_call_count
+    with count_lock:
+        if llm_call_count >= CALL_LIMIT:
+            stop_event.set()
+            return None
+        # Increment here ensures we count every attempt
+        llm_call_count += 1
+
     nurse, error_msg = extract_data(client, path)
     if nurse:
         is_blank = (
@@ -115,6 +146,8 @@ def extract_data(client, path):
         with open(path, "rb") as f:
             image_bytes = f.read()
         image_bytes = reduce_resolution(image_bytes, scale=0.5)
+
+        # The actual LLM call
         response = llm(image_bytes, client)
 
         if not response or not response.text:

@@ -3,4 +3,4 @@ UNPROCESSED_FOLDERS = "data/unprocessed_folders.txt"
 PROCESSED_FOLDERS = "output/processed_folders.txt"
 NURSE_OUTPUT = "output/nurses.csv"
 ERRORS_OUTPUT = "output/errors.csv"
-MAX_NURSES_TO_SAVE = 500
+MAX_NURSES_TO_SAVE = 100
