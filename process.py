@@ -30,7 +30,10 @@ error_lock = threading.Lock()
 
 def process(base_path):
     master_cache = load_processed_cache()
+    print("getting unprocessed folders")
     unprocessed_folders = get_unprocessed_folders(base_path)
+    print("unprocessed folders:")
+    print(unprocessed_folders)
     for folder in unprocessed_folders:
         if stop_event.is_set():
             print(f"\nLimit of {CALL_LIMIT} calls reached. Exiting.")
@@ -257,7 +260,6 @@ def get_unprocessed_folders(base_path):
     if os.path.exists(constants.PROCESSED_FOLDERS):
         with open(constants.PROCESSED_FOLDERS, "r") as f:
             processed_names = {line.strip() for line in f if line.strip()}
-
     if not os.path.exists(constants.UNPROCESSED_FOLDERS):
         return []
 
