@@ -16,7 +16,7 @@ def summarize_data_processing():
 
     folder_summaries = []
 
-    # 1. Load Reference Data into memory for faster lookups
+    # 1. Load Reference Data
     nurses_seen = set()
     if os.path.exists(constants.NURSE_OUTPUT):
         with open(constants.NURSE_OUTPUT, "r", encoding="utf-8") as f:
@@ -29,25 +29,31 @@ def summarize_data_processing():
         with open(constants.ERRORS_OUTPUT, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                error_map[row["filename"]] = row["reason"]
+                fname = row["filename"]
+                reason = row["reason"]
+
+                # Logic: If the file isn't in the map yet, add it.
+                # If it IS in the map but the current reason is a 'real' error (not "File already processed"),
+                # overwrite the existing entry to ensure we capture the need to rerun.
+                if fname not in error_map or reason != "File already processed":
+                    error_map[fname] = reason
 
     # 2. Process folders
     if not os.path.exists(constants.ALL_FOLDERS):
-        print("Error: folder with all folders not found.")
+        print("Error: data/general_folder.txt not found.")
         return
 
-    with open("data/general_folder.txt", "r") as f:
+    with open(constants.ALL_FOLDERS, "r") as f:
         folder_names = [line.strip() for line in f if line.strip()]
 
     for folder_name in folder_names:
         folder_path = Path(constants.BASE_PATH) / folder_name
 
-        # --- LOGIC CHANGE: Ignore folder if it does not exist ---
+        # Ignore folder if it does not exist
         if not folder_path.exists():
             print(f"Skipping: {folder_name} (Path not found)")
             continue
 
-        # Stats for this specific folder
         stats = {
             "folder": folder_name,
             "processed": 0,
@@ -57,7 +63,7 @@ def summarize_data_processing():
             "total_files": 0,
         }
 
-        # Gather all jpgs (case-insensitive)
+        # Gather all jpgs
         jpg_files = [
             str(p)
             for p in folder_path.glob("*")
@@ -66,23 +72,36 @@ def summarize_data_processing():
         stats["total_files"] = len(jpg_files)
 
         for file_path in jpg_files:
+            # Priority 1: Check if it's in the success CSV
             if file_path in nurses_seen:
                 stats["processed"] += 1
+
+            # Priority 2: Check the error map
             elif file_path in error_map:
                 reason = error_map[file_path]
                 if reason == "Blank Card / No data found":
                     stats["processed_blank"] += 1
                 elif reason == "File already processed":
-                    continue
+                    # We treat this as "not processed" in terms of counts,
+                    # as it didn't land in NURSE_OUTPUT or a valid error category.
+                    stats["not_run_at_all"] += 1
                 else:
+                    # Any other error reason means it needs a rerun
                     stats["need_rerun"] += 1
+
+            # Priority 3: Not found anywhere
             else:
                 stats["not_run_at_all"] += 1
 
-        # Add to global totals
-        for key in total_stats:
-            if key != "folder" and key != "percent_complete":
-                total_stats[key] += stats.get(key, 0)
+        # Aggregate global totals
+        for key in [
+            "processed",
+            "processed_blank",
+            "need_rerun",
+            "not_run_at_all",
+            "total_files",
+        ]:
+            total_stats[key] += stats[key]
 
         folder_summaries.append(stats)
 
@@ -110,7 +129,7 @@ def summarize_data_processing():
             )
             writer.writerow(s)
 
-        # Write Aggregate Total Row
+        # Grand Total Row
         total_sum = total_stats["total_files"]
         total_stats["folder"] = "GRAND TOTAL"
         total_stats["percent_complete"] = (
