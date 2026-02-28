@@ -22,7 +22,7 @@ stop_event = threading.Event()
 # ---------------------------
 
 RPM_LIMIT = 50
-COOLDOWN = 30
+COOLDOWN = 5
 
 cache_lock = threading.Lock()
 error_lock = threading.Lock()
